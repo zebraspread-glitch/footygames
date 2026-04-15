@@ -21,7 +21,7 @@ const modes = [
     title: "Jumper Number Streak",
     desc: "Keep naming player jumper numbers correctly to build a streak.",
     pill: "PLAY",
-    cardClass: styles.cardPeach,
+    cardClass: styles.cardOrange,
   },
   {
     href: "/name-the-player",
@@ -37,40 +37,45 @@ const modes = [
     pill: "PLAY",
     cardClass: styles.cardRed,
   },
-
-    {
+  {
     href: "/connections",
     title: "Connections",
     desc: "Group 16 AFL players into 4 connected categories.",
     pill: "PLAY",
     cardClass: styles.cardYellow,
   },
-  
+  {
+    href: "/odd-one-out",
+    title: "Odd One Out",
+    desc: "Show 4 players and pick the one that doesn’t belong.",
+    pill: "PLAY",
+    cardClass: styles.cardCyan,
+  },
 ];
 
 export default function HomePage() {
   return (
     <main className={styles.page}>
-      <section className={styles.grid}>
-        {modes.map((mode) => (
-          <Link
-            key={mode.href}
-            href={mode.href}
-            className={`${styles.card} ${mode.cardClass}`}
-          >
-            <div className={styles.topRow}>
-              <span className={styles.pill}>{mode.pill}</span>
-              <span className={styles.arrow}>→</span>
-            </div>
+      <section className={styles.wrap}>
+        <div className={styles.list}>
+          {modes.map((mode) => (
+            <Link
+              key={mode.href}
+              href={mode.href}
+              className={`${styles.card} ${mode.cardClass}`}
+            >
+              <div className={styles.left}>
+                <h2>{mode.title}</h2>
+                <p>{mode.desc}</p>
+              </div>
 
-            <div className={styles.body}>
-              <h2>{mode.title}</h2>
-              <p>{mode.desc}</p>
-            </div>
-
-            <span className={styles.linkText}>Open mode</span>
-          </Link>
-        ))}
+              <div className={styles.right}>
+                <span className={styles.pill}>{mode.pill}</span>
+                <span className={styles.arrow}>→</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </section>
     </main>
   );
