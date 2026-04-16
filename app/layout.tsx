@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+  other: {
+    "google-adsense-account": "ca-pub-2276050414767400",
+  },
 };
 
 export default function RootLayout({
@@ -19,15 +22,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
+      <body>
         <Script
+          id="adsense-script"
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2276050414767400"
           crossOrigin="anonymous"
           strategy="afterInteractive"
         />
-      </head>
-      <body>
         <TopBar />
         {children}
         <Analytics />
