@@ -321,26 +321,6 @@
     "metres_gained": 526
   },
   {
-    "id": "stk_tauru",
-    "name": "Alixzander Tauru",
-    "club": "St Kilda",
-    "pos": [
-      "DEF"
-    ],
-    "age": 19,
-    "number": 26,
-    "disposals": 0,
-    "goals": 0,
-    "kicks": 0,
-    "handballs": 0,
-    "marks": 0,
-    "tackles": 0,
-    "hitouts": 0,
-    "sc_points": 0,
-    "bounces": 0,
-    "metres_gained": 0
-  },
-  {
     "id": "frem_brayshaw",
     "name": "Andrew Brayshaw",
     "club": "Fremantle",
@@ -524,26 +504,6 @@
     "metres_gained": 860
   },
   {
-    "id": "ess_may",
-    "name": "Archer May",
-    "club": "Essendon",
-    "pos": [
-      "DEF"
-    ],
-    "age": 21,
-    "number": 26,
-    "disposals": 0,
-    "goals": 0,
-    "kicks": 0,
-    "handballs": 0,
-    "marks": 0,
-    "tackles": 0,
-    "hitouts": 0,
-    "sc_points": 0,
-    "bounces": 0,
-    "metres_gained": 0
-  },
-  {
     "id": "wce_areid",
     "name": "Archer Reid",
     "club": "West Coast",
@@ -585,10 +545,10 @@
   },
   {
     "id": "ess_archie_may",
-    "name": "Archie May",
+    "name": "Archer May",
     "club": "Essendon",
     "pos": [
-      "MID"
+      "FWD"
     ],
     "age": 25,
     "number": 26,
@@ -8437,26 +8397,6 @@
     ],
     "age": 24,
     "number": 7,
-    "disposals": 0,
-    "goals": 0,
-    "kicks": 0,
-    "handballs": 0,
-    "marks": 0,
-    "tackles": 0,
-    "hitouts": 0,
-    "sc_points": 0,
-    "bounces": 0,
-    "metres_gained": 0
-  },
-  {
-    "id": "ess_blakiston",
-    "name": "Lachie Blakiston",
-    "club": "Essendon",
-    "pos": [
-      "DEF"
-    ],
-    "age": 27,
-    "number": 46,
     "disposals": 0,
     "goals": 0,
     "kicks": 0,

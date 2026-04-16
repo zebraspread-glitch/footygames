@@ -51,6 +51,20 @@ const modes = [
     pill: "PLAY",
     cardClass: styles.cardCyan,
   },
+  {
+    href: "/blitz",
+    title: "Blitz Mode",
+    desc: "Beat the clock and guess as many AFL players as possible before time runs out.",
+    pill: "PLAY",
+    cardClass: styles.cardBlue,
+  },
+  {
+    href: "/emoji",
+    title: "Emoji",
+    desc: "Guess the AFL player from emoji clues.",
+    pill: "PLAY",
+    cardClass: styles.cardGreen,
+  },
 ];
 
 export default function HomePage() {

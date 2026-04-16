@@ -4,8 +4,11 @@ import TopBar from "@/components/TopBar";
 import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
-  title: "FootyGames",
+  title: "FootyArcade",
   description: "A clean AFL game hub inspired by retro daily guessing sites.",
+  icons: {
+    icon: "/favicon.ico", // or "/topbaricon.png"
+  },
 };
 
 export default function RootLayout({

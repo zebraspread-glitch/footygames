@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 
 const links = [
   { href: "/", label: "Home" },
@@ -17,11 +18,21 @@ export default function TopBar() {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link href="/" className="brand">
-          <span className="brand-badge">FG</span>
+        <Link href="/" className="brand" suppressHydrationWarning>
+          
+          {/* ICON REPLACES FG */}
+          <Image
+  src="/topbaricon.png"
+  alt="FootyArcade Logo"
+  width={56}
+  height={56}
+  className="brand-icon"
+  priority
+/>
+
           <div>
-            <div className="brand-title">FootyGames</div>
-            <div className="brand-subtitle">an AFL player guessing hub</div>
+            <div className="brand-title">FootyArcade</div>
+            <div className="brand-subtitle"></div>
           </div>
         </Link>
 
