@@ -296,7 +296,9 @@ export default function JumperStreakPage() {
 
     const startsWith = pool.filter((p) => normalizeName(p.name).startsWith(query));
     const includes = pool.filter(
-      (p) => !startsWith.some((s) => s.id === p.id) && normalizeName(p.name).includes(query)
+      (p) =>
+        !startsWith.some((s) => s.id === p.id) &&
+        normalizeName(p.name).includes(query)
     );
 
     return [...startsWith, ...includes].slice(0, 8);
@@ -880,34 +882,45 @@ export default function JumperStreakPage() {
         </label>
 
         <div className="input-dropdown-wrap" ref={inputWrapRef}>
-          <input
-            ref={answerInputRef}
-            id="answer-input"
-            className={`answer-input ${shakeInput ? "shake" : ""}`}
-            inputMode={mode === "guess-number" ? "numeric" : "text"}
-            placeholder={getInputPlaceholder()}
-            value={inputValue}
-            onChange={(e) => {
-              if (mode === "guess-number") {
-                const cleaned = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
-                setInputValue(cleaned);
-                return;
-              }
+          <div className="input-submit-row">
+            <input
+              ref={answerInputRef}
+              id="answer-input"
+              className={`answer-input ${shakeInput ? "shake" : ""}`}
+              inputMode={mode === "guess-number" ? "numeric" : "text"}
+              placeholder={getInputPlaceholder()}
+              value={inputValue}
+              onChange={(e) => {
+                if (mode === "guess-number") {
+                  const cleaned = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+                  setInputValue(cleaned);
+                  return;
+                }
 
-              const value = e.target.value;
-              setInputValue(value);
-              setShowDropdown(Boolean(normalizeName(value)));
-            }}
-            onFocus={() => {
-              if (mode === "guess-player" && !runEnded && normalizeName(inputValue)) {
-                setShowDropdown(true);
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            disabled={runEnded || !currentPlayer || isCycling}
-            autoComplete="off"
-            autoFocus
-          />
+                const value = e.target.value;
+                setInputValue(value);
+                setShowDropdown(Boolean(normalizeName(value)));
+              }}
+              onFocus={() => {
+                if (mode === "guess-player" && !runEnded && normalizeName(inputValue)) {
+                  setShowDropdown(true);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              disabled={runEnded || !currentPlayer || isCycling}
+              autoComplete="off"
+              autoFocus
+            />
+
+            <button
+              type="button"
+              className="submit-button"
+              onClick={() => handleSubmit()}
+              disabled={runEnded || !currentPlayer || isCycling}
+            >
+              Submit
+            </button>
+          </div>
 
           {mode === "guess-player" && showDropdown && filteredPlayerOptions.length > 0 && (
             <div className="player-dropdown">
@@ -1126,6 +1139,12 @@ export default function JumperStreakPage() {
           max-width: 100%;
         }
 
+        .input-submit-row {
+          display: flex;
+          gap: 10px;
+          align-items: stretch;
+        }
+
         .answer-input {
           width: 100%;
           padding: 14px 16px;
@@ -1138,6 +1157,30 @@ export default function JumperStreakPage() {
           outline: none;
           transition: transform 0.18s ease;
           box-sizing: border-box;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .submit-button {
+          padding: 0 18px;
+          border: 3px solid #271248;
+          border-radius: 10px;
+          background: #f5ddd8;
+          color: #271248;
+          font-size: 1rem;
+          font-weight: 900;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: transform 0.14s ease, opacity 0.14s ease;
+        }
+
+        .submit-button:hover:not(:disabled) {
+          transform: translateY(-2px);
+        }
+
+        .submit-button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .player-dropdown {
@@ -1539,9 +1582,18 @@ export default function JumperStreakPage() {
             width: 100%;
           }
 
+          .input-submit-row {
+            flex-direction: column;
+          }
+
           .answer-input {
             font-size: 16px;
             padding: 13px 14px;
+          }
+
+          .submit-button {
+            width: 100%;
+            min-height: 52px;
           }
 
           .player-dropdown {
