@@ -296,9 +296,7 @@ export default function JumperStreakPage() {
 
     const startsWith = pool.filter((p) => normalizeName(p.name).startsWith(query));
     const includes = pool.filter(
-      (p) =>
-        !startsWith.some((s) => s.id === p.id) &&
-        normalizeName(p.name).includes(query)
+      (p) => !startsWith.some((s) => s.id === p.id) && normalizeName(p.name).includes(query)
     );
 
     return [...startsWith, ...includes].slice(0, 8);
@@ -336,8 +334,8 @@ export default function JumperStreakPage() {
       availablePlayers.length > 0
         ? availablePlayers
         : allPlayers.length > 0
-        ? allPlayers
-        : [targetPlayer];
+          ? allPlayers
+          : [targetPlayer];
 
     let tick = 0;
     setIsCycling(true);
@@ -755,7 +753,7 @@ export default function JumperStreakPage() {
             width: "100%",
             textAlign: "center",
             fontFamily: "Arial Black, Impact, sans-serif",
-            fontSize: "min(28vw, 420px)",
+            fontSize: "clamp(72px, 20vw, 420px)",
             lineHeight: "0.82",
             fontWeight: 900,
             color: "#111",
@@ -785,16 +783,18 @@ export default function JumperStreakPage() {
         >
           <div
             style={{
-              fontSize: "min(5vw, 70px)",
+              fontSize: "clamp(2rem, 5vw, 70px)",
               minHeight: "1em",
+              wordBreak: "break-word",
             }}
           >
             {firstName}
           </div>
           <div
             style={{
-              fontSize: "min(5vw, 70px)",
+              fontSize: "clamp(2rem, 5vw, 70px)",
               minHeight: "1em",
+              wordBreak: "break-word",
             }}
           >
             {lastName}
@@ -809,7 +809,7 @@ export default function JumperStreakPage() {
           width: "100%",
           textAlign: "center",
           fontFamily: "Arial Black, Impact, sans-serif",
-          fontSize: "min(28vw, 420px)",
+          fontSize: "clamp(72px, 20vw, 420px)",
           lineHeight: "0.82",
           fontWeight: 900,
           color: "#111",
@@ -943,11 +943,7 @@ export default function JumperStreakPage() {
         <div className={`left-panel ${isCycling ? "reel-active" : ""}`}>
           {shownTeam ? (
             <>
-              <img
-                src={getTeamIconPath(shownTeam)}
-                alt={shownTeam}
-                className="team-logo"
-              />
+              <img src={getTeamIconPath(shownTeam)} alt={shownTeam} className="team-logo" />
               <p className="clue-text">{getClueTextFor(shownTeam, shownPosition)}</p>
             </>
           ) : (
@@ -955,18 +951,7 @@ export default function JumperStreakPage() {
           )}
         </div>
 
-        <div
-          className={`right-display ${isCycling ? "reel-active" : ""}`}
-          style={{
-            width: "100%",
-            minHeight: "520px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-            flex: 1,
-          }}
-        >
+        <div className={`right-display ${isCycling ? "reel-active" : ""}`}>
           {renderRightPanel()}
         </div>
       </section>
@@ -1060,6 +1045,10 @@ export default function JumperStreakPage() {
         .game-page {
           padding: 24px 20px 36px;
           transition: background-color 0.2s ease;
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+          box-sizing: border-box;
         }
 
         .flash-green {
@@ -1089,6 +1078,7 @@ export default function JumperStreakPage() {
           gap: 14px;
           flex-wrap: wrap;
           margin-bottom: 18px;
+          width: 100%;
         }
 
         .control-group {
@@ -1097,6 +1087,11 @@ export default function JumperStreakPage() {
           gap: 8px;
           font-weight: 800;
           color: #271248;
+          min-width: 0;
+        }
+
+        .control-group label {
+          flex: 0 0 auto;
         }
 
         .simple-select {
@@ -1108,6 +1103,8 @@ export default function JumperStreakPage() {
           font-weight: 800;
           font-size: 1rem;
           outline: none;
+          min-width: 0;
+          max-width: 100%;
         }
 
         .simple-select:disabled {
@@ -1120,11 +1117,13 @@ export default function JumperStreakPage() {
           display: flex;
           justify-content: center;
           margin-bottom: 18px;
+          width: 100%;
         }
 
         .input-dropdown-wrap {
           position: relative;
           width: min(460px, 92%);
+          max-width: 100%;
         }
 
         .answer-input {
@@ -1138,6 +1137,7 @@ export default function JumperStreakPage() {
           font-weight: 700;
           outline: none;
           transition: transform 0.18s ease;
+          box-sizing: border-box;
         }
 
         .player-dropdown {
@@ -1211,6 +1211,7 @@ export default function JumperStreakPage() {
           align-items: stretch;
           min-height: 72vh;
           margin-bottom: 14px;
+          width: 100%;
         }
 
         .left-panel {
@@ -1225,6 +1226,14 @@ export default function JumperStreakPage() {
 
         .right-display {
           will-change: opacity, filter, transform;
+          width: 100%;
+          min-width: 0;
+          min-height: 520px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          flex: 1;
         }
 
         .reel-active {
@@ -1233,6 +1242,7 @@ export default function JumperStreakPage() {
 
         .team-logo {
           width: min(100%, 520px);
+          max-width: 100%;
           max-height: 520px;
           object-fit: contain;
         }
@@ -1243,6 +1253,8 @@ export default function JumperStreakPage() {
           font-weight: 800;
           color: #271248;
           text-align: center;
+          line-height: 1.25;
+          padding: 0 8px;
         }
 
         .status-row {
@@ -1300,6 +1312,7 @@ export default function JumperStreakPage() {
           font-size: 1.2rem;
           font-weight: 800;
           color: #271248;
+          text-align: center;
         }
 
         .shake {
@@ -1372,6 +1385,7 @@ export default function JumperStreakPage() {
           line-height: 1;
           font-weight: 1000;
           color: #1e1238;
+          word-break: break-word;
         }
 
         .modal-number {
@@ -1467,48 +1481,181 @@ export default function JumperStreakPage() {
         @media (max-width: 900px) {
           .main-game {
             grid-template-columns: 1fr;
+            gap: 16px;
+            min-height: auto;
+          }
+
+          .left-panel,
+          .right-display {
             min-height: auto;
           }
 
           .left-panel {
-            min-height: 300px;
+            padding-top: 8px;
           }
 
           .team-logo {
-            width: min(90vw, 360px);
-            max-height: 280px;
+            width: min(78vw, 360px);
+            max-height: 260px;
+          }
+
+          .right-display {
+            min-height: 180px;
+            padding: 8px 0;
           }
         }
 
         @media (max-width: 640px) {
           .game-page {
-            padding: 18px 14px 28px;
+            padding: 16px 12px 26px;
+          }
+
+          .top-bar {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 14px;
           }
 
           .control-group {
             width: 100%;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 88px minmax(0, 1fr);
+            align-items: center;
+            gap: 10px;
           }
 
           .simple-select {
-            min-width: 140px;
+            width: 100%;
+            min-width: 0;
+            font-size: 16px;
+          }
+
+          .input-row {
+            margin-bottom: 14px;
+          }
+
+          .input-dropdown-wrap {
+            width: 100%;
+          }
+
+          .answer-input {
+            font-size: 16px;
+            padding: 13px 14px;
+          }
+
+          .player-dropdown {
+            max-height: 240px;
+          }
+
+          .player-option {
+            padding: 10px 12px;
+          }
+
+          .player-option-name {
+            font-size: 0.95rem;
+          }
+
+          .player-option-team {
+            font-size: 0.85rem;
+          }
+
+          .main-game {
+            gap: 10px;
+            margin-bottom: 12px;
           }
 
           .left-panel {
-            min-height: 220px;
+            min-height: auto;
+          }
+
+          .team-logo {
+            width: min(72vw, 300px);
+            max-height: 200px;
           }
 
           .clue-text {
-            font-size: 1rem;
+            margin-top: 10px;
+            font-size: 0.98rem;
+          }
+
+          .right-display {
+            min-height: 120px;
+          }
+
+          .status-row {
+            gap: 16px;
+            margin-bottom: 14px;
           }
 
           .status-text {
             font-size: 1rem;
           }
 
+          .button-row {
+            width: 100%;
+          }
+
           .main-button,
           .modal-button {
             width: 100%;
+          }
+
+          .modal-overlay {
+            padding: 12px;
+          }
+
+          .modal-box {
+            box-shadow: 6px 6px 0 #271248;
+          }
+
+          .modal-top {
+            padding: 22px 18px 16px;
+          }
+
+          .modal-bottom {
+            padding: 22px 18px 24px;
+          }
+
+          .modal-logo {
+            width: 88px;
+            height: 88px;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .game-page {
+            padding: 14px 10px 24px;
+          }
+
+          .control-group {
+            grid-template-columns: 78px minmax(0, 1fr);
+            gap: 8px;
+          }
+
+          .control-group label {
+            font-size: 0.98rem;
+          }
+
+          .simple-select {
+            padding: 10px 10px;
+          }
+
+          .answer-input {
+            padding: 12px 12px;
+          }
+
+          .team-logo {
+            width: min(68vw, 260px);
+            max-height: 170px;
+          }
+
+          .clue-text {
+            font-size: 0.92rem;
+          }
+
+          .status-text {
+            font-size: 0.95rem;
           }
         }
       `}</style>
