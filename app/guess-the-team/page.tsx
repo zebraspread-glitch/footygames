@@ -1,94 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
-import playersData from "../data/afl_players26.json";
+import { useEffect, useMemo, useState } from "react";
+import playersData from "@/app/data/afl_players26.json";
 
-const MAX_GUESSES = 6;
-const MAX_CLUES = 6;
-const STORAGE_KEY = "guess-the-team-state-v6";
+type Player = Record<string, unknown>;
+type StatKey = "disposals" | "goals" | "age" | "number";
 
-type PlayerRecord = {
-  id?: string | number;
-  name?: string;
-  player?: string;
-  full_name?: string;
-  fullName?: string;
-  team?: string;
-  club?: string;
-  Team?: string;
-  pos?: string | string[];
-  position?: string | string[];
-  Pos?: string | string[];
-  Position?: string | string[];
-  [key: string]: unknown;
-};
+const STAT_OPTIONS: { key: StatKey; label: string }[] = [
+  { key: "disposals", label: "Disposals" },
+  { key: "goals", label: "Goals" },
+  { key: "age", label: "Age" },
+  { key: "number", label: "Jersey Number" },
+];
 
-type CluePlayer = {
-  name: string;
-  team: string;
-  pos: string;
-  initials: string;
-};
-
-type TeamPool = {
-  all: CluePlayer[];
-  fwd: CluePlayer[];
-  mid: CluePlayer[];
-  def: CluePlayer[];
-  ruck: CluePlayer[];
-};
-
-type TeamPools = Record<string, TeamPool>;
-
-type RoundData = {
-  answer: string;
-  orderedClues: CluePlayer[];
-};
-
-type FlashState = "idle" | "good" | "bad";
-type RoleType = "FWD" | "MID" | "DEF" | "RUCK";
-
-const TEAM_ALIASES: Record<string, string> = {
-  "Adelaide Crows": "Adelaide",
-  Adelaide: "Adelaide",
-  "Brisbane Lions": "Brisbane",
-  Brisbane: "Brisbane",
-  Carlton: "Carlton",
-  Collingwood: "Collingwood",
-  Essendon: "Essendon",
-  Fremantle: "Fremantle",
-  Geelong: "Geelong",
-  "Geelong Cats": "Geelong",
-  "Gold Coast Suns": "Gold Coast",
-  "Gold Coast": "Gold Coast",
-  GWS: "GWS",
-  "Greater Western Sydney": "GWS",
-  Hawthorn: "Hawthorn",
-  Melbourne: "Melbourne",
-  "North Melbourne": "North Melbourne",
-  Kangaroos: "North Melbourne",
-  "Port Adelaide": "Port Adelaide",
-  Richmond: "Richmond",
-  "St Kilda": "St Kilda",
-  Sydney: "Sydney",
-  "Sydney Swans": "Sydney",
-  "West Coast": "West Coast",
-  "West Coast Eagles": "West Coast",
-  "Western Bulldogs": "Western Bulldogs",
-  Bulldogs: "Western Bulldogs",
-};
-
-const TEAM_ICONS: Record<string, string> = {
+const TEAM_ICON_MAP: Record<string, string> = {
   Adelaide: "/team-icons/adelaide.png",
+  "Brisbane Lions": "/team-icons/brisbane.png",
   Brisbane: "/team-icons/brisbane.png",
   Carlton: "/team-icons/carlton.png",
   Collingwood: "/team-icons/collingwood.png",
   Essendon: "/team-icons/essendon.png",
   Fremantle: "/team-icons/fremantle.png",
   Geelong: "/team-icons/geelong.png",
+  "Geelong Cats": "/team-icons/geelong.png",
   "Gold Coast": "/team-icons/goldcoast.png",
+  "Gold Coast Suns": "/team-icons/goldcoast.png",
   GWS: "/team-icons/gws.png",
+  "GWS Giants": "/team-icons/gws.png",
   Hawthorn: "/team-icons/hawthorn.png",
   Melbourne: "/team-icons/melbourne.png",
   "North Melbourne": "/team-icons/northmelbourne.png",
@@ -96,837 +34,662 @@ const TEAM_ICONS: Record<string, string> = {
   Richmond: "/team-icons/richmond.png",
   "St Kilda": "/team-icons/stkilda.png",
   Sydney: "/team-icons/sydney.png",
+  "Sydney Swans": "/team-icons/sydney.png",
   "West Coast": "/team-icons/westcoast.png",
+  "West Coast Eagles": "/team-icons/westcoast.png",
   "Western Bulldogs": "/team-icons/westernbulldogs.png",
 };
 
-function normaliseTeamName(team: string): string {
-  if (!team) return "";
-  return TEAM_ALIASES[team] || team;
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+}
+
+function getName(player: Player): string {
+  const name = typeof player.name === "string" ? player.name.trim() : "";
+  if (name) return name;
+
+  const firstName =
+    typeof player.firstName === "string" ? player.firstName.trim() : "";
+  const lastName =
+    typeof player.lastName === "string" ? player.lastName.trim() : "";
+
+  const fullName = `${firstName} ${lastName}`.trim();
+  return fullName || "Unknown Player";
+}
+
+function getTeam(player: Player): string {
+  const team =
+    typeof player.team === "string"
+      ? player.team.trim()
+      : typeof player.club === "string"
+        ? player.club.trim()
+        : "";
+
+  return team || "Unknown Team";
 }
 
 function getTeamIcon(team: string): string {
-  const normalised = normaliseTeamName(team);
-  return TEAM_ICONS[normalised] || "/favicon.ico";
+  return TEAM_ICON_MAP[team] || "";
 }
 
-function getInitials(name: string): string {
-  if (!name) return "?";
-  const parts = String(name).trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return parts[0]?.[0]?.toUpperCase() || "?";
-  return `${parts[0]?.[0] || ""}${parts[parts.length - 1]?.[0] || ""}`.toUpperCase();
-}
-
-function getPlayerName(player: PlayerRecord): string {
-  return String(player.name || player.player || player.full_name || player.fullName || "").trim();
-}
-
-function getPlayerTeam(player: PlayerRecord): string {
-  return normaliseTeamName(String(player.team || player.club || player.Team || "").trim());
-}
-
-function normalisePosValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean)
-      .join(" ")
-      .toUpperCase();
-  }
-
-  if (typeof value === "string") {
-    return value.toUpperCase();
-  }
-
-  return "";
-}
-
-function getPlayerPos(player: PlayerRecord): string {
-  return normalisePosValue(player.pos ?? player.position ?? player.Pos ?? player.Position ?? "");
-}
-
-function isForward(pos: string): boolean {
-  return pos.includes("F");
-}
-
-function isMid(pos: string): boolean {
-  return pos.includes("M") || pos.includes("W") || pos.includes("C");
-}
-
-function isDefender(pos: string): boolean {
-  return pos.includes("B") || pos.includes("D");
-}
-
-function isRuck(pos: string): boolean {
-  return pos.includes("R");
-}
-
-function getRoleType(pos: string): RoleType {
-  if (isRuck(pos)) return "RUCK";
-  if (isForward(pos)) return "FWD";
-  if (isDefender(pos)) return "DEF";
-  return "MID";
-}
-
-function getRoleColors(role: RoleType) {
-  if (role === "FWD") {
-    return {
-      border: "#3b82f6",
-      bg: "#eff6ff",
-      pillBg: "#2563eb",
-      pillText: "#ffffff",
-    };
-  }
-
-  if (role === "MID") {
-    return {
-      border: "#22c55e",
-      bg: "#f0fdf4",
-      pillBg: "#16a34a",
-      pillText: "#ffffff",
-    };
-  }
-
-  if (role === "DEF") {
-    return {
-      border: "#a855f7",
-      bg: "#faf5ff",
-      pillBg: "#9333ea",
-      pillText: "#ffffff",
-    };
-  }
-
-  return {
-    border: "#f97316",
-    bg: "#fff7ed",
-    pillBg: "#ea580c",
-    pillText: "#ffffff",
-  };
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function buildTeamPool(allPlayers: PlayerRecord[]): TeamPools {
-  const byTeam: TeamPools = {};
-
-  for (const rawPlayer of allPlayers) {
-    const name = getPlayerName(rawPlayer);
-    const team = getPlayerTeam(rawPlayer);
-    const pos = getPlayerPos(rawPlayer);
-
-    if (!name || !team || !pos) continue;
-
-    if (!byTeam[team]) {
-      byTeam[team] = {
-        all: [],
-        fwd: [],
-        mid: [],
-        def: [],
-        ruck: [],
-      };
-    }
-
-    const player: CluePlayer = {
-      name,
-      team,
-      pos,
-      initials: getInitials(name),
-    };
-
-    byTeam[team].all.push(player);
-    if (isForward(pos)) byTeam[team].fwd.push(player);
-    if (isMid(pos)) byTeam[team].mid.push(player);
-    if (isDefender(pos)) byTeam[team].def.push(player);
-    if (isRuck(pos)) byTeam[team].ruck.push(player);
-  }
-
-  return byTeam;
-}
-
-function createRound(teamPools: TeamPools): RoundData | null {
-  const validTeams = Object.entries(teamPools)
-    .filter(([, data]) => {
-      const uniqueNames = new Set(data.all.map((p) => p.name));
-      return (
-        data.fwd.length > 0 &&
-        data.mid.length > 0 &&
-        data.def.length > 0 &&
-        data.ruck.length > 0 &&
-        uniqueNames.size >= 8
-      );
-    })
-    .map(([team]) => team);
-
-  if (validTeams.length === 0) return null;
-
-  const team = pickRandom(validTeams);
-  const pool = teamPools[team];
-  const used = new Set<string>();
-
-  function takeUnique(list: CluePlayer[]): CluePlayer | null {
-    const options = shuffle(list).filter((p) => !used.has(p.name));
-    if (options.length === 0) return null;
-    const player = options[0];
-    used.add(player.name);
-    return player;
-  }
-
-  const starter = takeUnique(pool.all);
-  const fwd = takeUnique(pool.fwd);
-  const mid = takeUnique(pool.mid);
-  const def = takeUnique(pool.def);
-  const ruck = takeUnique(pool.ruck);
-  const extra = takeUnique(pool.all.filter((p) => !used.has(p.name)));
-
-  const orderedClues = [starter, fwd, mid, def, ruck, extra].filter(Boolean) as CluePlayer[];
-
-  if (orderedClues.length < MAX_CLUES) return null;
-
-  return {
-    answer: team,
-    orderedClues: orderedClues.slice(0, MAX_CLUES),
-  };
-}
-
-function getVisibleClues(round: RoundData, guessesUsed: number): CluePlayer[] {
-  const clueCount = Math.min(1 + guessesUsed, MAX_CLUES);
-  return round.orderedClues.slice(0, clueCount);
-}
-
-export default function GuessTheTeamPage() {
-  const typedPlayers = playersData as PlayerRecord[];
-
-  const teamPools = useMemo(() => buildTeamPool(typedPlayers), [typedPlayers]);
-  const teamList = useMemo(
-    () => Object.keys(teamPools).sort((a, b) => a.localeCompare(b)),
-    [teamPools]
-  );
-
-  const [round, setRound] = useState<RoundData | null>(null);
-  const [guess, setGuess] = useState("");
-  const [guesses, setGuesses] = useState<string[]>([]);
-  const [status, setStatus] = useState<"playing" | "won" | "lost">("playing");
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [dropdownVisible, setDropdownVisible] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
-  const [gamesPlayed, setGamesPlayed] = useState(0);
-  const [flash, setFlash] = useState<FlashState>("idle");
-  const [shakeInput, setShakeInput] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  function saveMeta(next: { gamesPlayed?: number }) {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const prev = raw ? JSON.parse(raw) : {};
-      const merged = {
-        gamesPlayed: typeof next.gamesPlayed === "number" ? next.gamesPlayed : prev.gamesPlayed || 0,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    } catch {}
-  }
-
-  function startNewGame() {
-    let nextRound: RoundData | null = null;
-
-    for (let i = 0; i < 20; i += 1) {
-      nextRound = createRound(teamPools);
-      if (nextRound) break;
-    }
-
-    setRound(nextRound);
-    setGuess("");
-    setGuesses([]);
-    setStatus("playing");
-    setShowSuggestions(false);
-    setDropdownVisible(false);
-    setHighlightedIndex(0);
-    setFlash("idle");
-    setShakeInput(false);
-    setModalOpen(false);
-
-    window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 40);
-  }
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed.gamesPlayed === "number") setGamesPlayed(parsed.gamesPlayed);
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (Object.keys(teamPools).length > 0) {
-      startNewGame();
-    }
-  }, [teamPools]);
-
-  const filteredSuggestions = useMemo(() => {
-    const query = guess.trim().toLowerCase();
-    const alreadyGuessed = new Set(guesses.map((g) => g.toLowerCase()));
-    const list = !query ? teamList : teamList.filter((team) => team.toLowerCase().includes(query));
-    return list.filter((team) => !alreadyGuessed.has(team.toLowerCase())).slice(0, 18);
-  }, [guess, teamList, guesses]);
-
-  useEffect(() => {
-    setHighlightedIndex(0);
-  }, [guess]);
-
-  useEffect(() => {
-    if (status === "playing" && showSuggestions && filteredSuggestions.length > 0) {
-      setDropdownVisible(true);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setDropdownVisible(false);
-    }, 120);
-
-    return () => window.clearTimeout(timeout);
-  }, [showSuggestions, filteredSuggestions.length, status]);
-
-  function triggerBadFeedback() {
-    setFlash("bad");
-    setShakeInput(true);
-    window.setTimeout(() => setShakeInput(false), 350);
-    window.setTimeout(() => setFlash("idle"), 500);
-  }
-
-  function triggerGoodFeedback() {
-    setFlash("good");
-    window.setTimeout(() => setFlash("idle"), 700);
-  }
-
-  function finishGame(nextStatus: "won" | "lost", nextGuesses: string[]) {
-    const nextGames = gamesPlayed + 1;
-    setStatus(nextStatus);
-    setGamesPlayed(nextGames);
-    saveMeta({ gamesPlayed: nextGames });
-    setModalOpen(true);
-
-    if (nextStatus === "won") {
-      triggerGoodFeedback();
-    } else {
-      triggerBadFeedback();
-    }
-
-    setGuesses(nextGuesses);
-    setGuess("");
-    setShowSuggestions(false);
-  }
-
-  function submitGuess(selectedTeam?: string) {
-    if (!round || status !== "playing") return;
-
-    const cleanGuess = normaliseTeamName((selectedTeam ?? guess).trim());
-    if (!cleanGuess) return;
-
-    const alreadyGuessed = guesses.some((g) => g.toLowerCase() === cleanGuess.toLowerCase());
-    if (alreadyGuessed) {
-      setGuess("");
-      setShowSuggestions(false);
-      triggerBadFeedback();
-      return;
-    }
-
-    const isCorrect = cleanGuess.toLowerCase() === round.answer.toLowerCase();
-
-    if (isCorrect) {
-      const nextGuesses = [cleanGuess, ...guesses];
-      finishGame("won", nextGuesses);
-      return;
-    }
-
-    const nextGuesses = [cleanGuess, ...guesses];
-
-    if (nextGuesses.length >= MAX_GUESSES) {
-      finishGame("lost", nextGuesses);
-      return;
-    }
-
-    setGuesses(nextGuesses);
-    setGuess("");
-    setShowSuggestions(false);
-    triggerBadFeedback();
-  }
-
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    submitGuess();
-  }
-
-  function handleSuggestionPick(team: string) {
-    setGuess(team);
-    setShowSuggestions(false);
-    setHighlightedIndex(0);
-    submitGuess(team);
-  }
-
-  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setShowSuggestions(true);
-      setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(filteredSuggestions.length - 1, 0)));
-      return;
-    }
-
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
-      return;
-    }
-
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (showSuggestions && filteredSuggestions[highlightedIndex]) {
-        handleSuggestionPick(filteredSuggestions[highlightedIndex]);
-      } else {
-        submitGuess();
-      }
-      return;
-    }
-
-    if (e.key === "Escape") {
-      setShowSuggestions(false);
-    }
-  }
-
-  if (!round) {
+function getStatValue(player: Player, stat: StatKey): number | null {
+  if (stat === "disposals") {
     return (
-      <main style={styles.page}>
-        <div style={styles.wrap}>
-          <div style={styles.loadingBox}>
-            <h1 style={styles.loadingTitle}>Guess the AFL team</h1>
-            <p style={styles.loadingText}>Loading...</p>
-          </div>
-        </div>
-      </main>
+      asNumber(player.disposals) ??
+      asNumber(player.avgDisposals) ??
+      asNumber(player.disposalAverage) ??
+      asNumber(player.disposalAvg) ??
+      null
     );
   }
 
-  const shownClues = getVisibleClues(round, guesses.length);
-  const remainingGuesses = MAX_GUESSES - guesses.length;
-  const gameOver = status === "won" || status === "lost";
+  if (stat === "goals") {
+    return (
+      asNumber(player.goals) ??
+      asNumber(player.avgGoals) ??
+      asNumber(player.goalAverage) ??
+      asNumber(player.goalAvg) ??
+      null
+    );
+  }
+
+  if (stat === "age") {
+    return asNumber(player.age) ?? null;
+  }
+
+  return (
+    asNumber(player.number) ??
+    asNumber(player.jumperNumber) ??
+    asNumber(player.jumper) ??
+    asNumber(player.guernsey) ??
+    asNumber(player.guernseyNumber) ??
+    null
+  );
+}
+
+function formatValue(value: number | null, stat: StatKey): string {
+  if (value === null) return "?";
+  if (stat === "disposals" || stat === "goals") return value.toFixed(1);
+  return String(Math.round(value));
+}
+
+function getRandomPlayer(list: Player[], excludeName?: string): Player | null {
+  const pool = excludeName
+    ? list.filter((player) => getName(player) !== excludeName)
+    : list;
+
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+export default function NameThePlayerPage() {
+  const [selectedStat, setSelectedStat] = useState<StatKey>("disposals");
+  const [leftPlayer, setLeftPlayer] = useState<Player | null>(null);
+  const [rightPlayer, setRightPlayer] = useState<Player | null>(null);
+  const [score, setScore] = useState(0);
+  const [best, setBest] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [revealRightValue, setRevealRightValue] = useState(false);
+  const [flash, setFlash] = useState<"correct" | "wrong" | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+
+  const eligiblePlayers = useMemo(() => {
+    const rawPlayers = Array.isArray(playersData) ? (playersData as Player[]) : [];
+
+    return rawPlayers.filter((player) => {
+      const name = getName(player);
+      const team = getTeam(player);
+      const value = getStatValue(player, selectedStat);
+
+      return (
+        name !== "Unknown Player" &&
+        team !== "Unknown Team" &&
+        value !== null &&
+        value > 0
+      );
+    });
+  }, [selectedStat]);
+
+  function startGame() {
+    if (eligiblePlayers.length < 2) {
+      setLeftPlayer(null);
+      setRightPlayer(null);
+      setScore(0);
+      setGameOver(true);
+      setRevealRightValue(true);
+      setFlash(null);
+      setIsLocked(false);
+      return;
+    }
+
+    const first = getRandomPlayer(eligiblePlayers);
+    const second = getRandomPlayer(
+      eligiblePlayers,
+      first ? getName(first) : undefined
+    );
+
+    setLeftPlayer(first);
+    setRightPlayer(second);
+    setScore(0);
+    setGameOver(false);
+    setRevealRightValue(false);
+    setFlash(null);
+    setIsLocked(false);
+  }
+
+  useEffect(() => {
+    const savedBest = Number(localStorage.getItem("higher-lower-best") || "0");
+    if (!Number.isNaN(savedBest)) {
+      setBest(savedBest);
+    }
+  }, []);
+
+  useEffect(() => {
+    startGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStat, eligiblePlayers.length]);
+
+  function handleGuess(choice: "higher" | "lower") {
+    if (!leftPlayer || !rightPlayer || gameOver || isLocked) return;
+
+    const leftValue = getStatValue(leftPlayer, selectedStat);
+    const rightValue = getStatValue(rightPlayer, selectedStat);
+
+    if (leftValue === null || rightValue === null) return;
+
+    setIsLocked(true);
+    setRevealRightValue(true);
+
+    const isCorrect =
+      choice === "higher" ? rightValue >= leftValue : rightValue <= leftValue;
+
+    if (isCorrect) {
+      const newScore = score + 1;
+      setScore(newScore);
+      setFlash("correct");
+
+      if (newScore > best) {
+        setBest(newScore);
+        localStorage.setItem("higher-lower-best", String(newScore));
+      }
+
+      const nextLeft = rightPlayer;
+      const nextRight = getRandomPlayer(eligiblePlayers, getName(nextLeft));
+
+      window.setTimeout(() => {
+        setLeftPlayer(nextLeft);
+        setRightPlayer(nextRight);
+        setRevealRightValue(false);
+        setFlash(null);
+        setIsLocked(false);
+      }, 950);
+    } else {
+      setFlash("wrong");
+      setGameOver(true);
+
+      window.setTimeout(() => {
+        setIsLocked(false);
+      }, 950);
+    }
+  }
+
+  const leftValue = leftPlayer ? getStatValue(leftPlayer, selectedStat) : null;
+  const rightValue = rightPlayer ? getStatValue(rightPlayer, selectedStat) : null;
+  const selectedLabel =
+    STAT_OPTIONS.find((option) => option.key === selectedStat)?.label ||
+    "Disposals";
 
   return (
     <main
-      style={{
-        ...styles.page,
-        ...(flash === "good" ? styles.pageGood : {}),
-        ...(flash === "bad" ? styles.pageBad : {}),
-      }}
+      className={`hl-page ${flash === "correct" ? "correct" : ""} ${
+        flash === "wrong" ? "wrong" : ""
+      }`}
     >
-      <div style={styles.wrap}>
-        <div style={styles.kicker}>GUESS THE TEAM</div>
-        <h1 style={styles.title}>Find the hidden AFL team</h1>
-
-        <form onSubmit={handleSubmit} style={styles.searchRow}>
-          <div
-            style={{
-              ...styles.inputOuter,
-              ...(shakeInput ? styles.inputOuterShake : {}),
-            }}
-          >
-            <div style={styles.hashBox}>#</div>
-
-            <div style={styles.inputWrap}>
-              <input
-                ref={inputRef}
-                value={guess}
-                onChange={(e) => {
-                  setGuess(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => {
-                  window.setTimeout(() => setShowSuggestions(false), 100);
-                }}
-                onKeyDown={handleInputKeyDown}
-                placeholder="Enter a team..."
-                style={styles.input}
-                autoComplete="off"
-                disabled={gameOver}
-              />
-
-              {guess && !gameOver && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGuess("");
-                    inputRef.current?.focus();
-                  }}
-                  style={styles.clearButton}
-                >
-                  ×
-                </button>
-              )}
-
-              {dropdownVisible && filteredSuggestions.length > 0 && !gameOver && (
-                <div className={`team-dropdown ${showSuggestions ? "open" : "closing"}`}>
-                  {filteredSuggestions.map((team, index) => {
-                    const active = index === highlightedIndex;
-                    return (
-                      <button
-                        key={team}
-                        type="button"
-                        className={`team-option ${active ? "active" : ""}`}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => handleSuggestionPick(team)}
-                        style={{ animationDelay: `${index * 16}ms` }}
-                      >
-                        <div className="team-option-left">
-                          <img
-                            src={getTeamIcon(team)}
-                            alt={team}
-                            className="team-option-icon"
-                          />
-                          <span className="team-option-name">{team}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {!gameOver ? (
-            <button style={styles.actionButton} type="submit">
-              Guess
-            </button>
-          ) : (
-            <button onClick={startNewGame} style={styles.actionButton} type="button">
-              New Game
-            </button>
-          )}
-        </form>
-
-        <section style={styles.infoBar}>
-          <span>Guesses: {guesses.length}</span>
-          <span>Left: {remainingGuesses}</span>
-          <span>Games: {gamesPlayed}</span>
-          <span>Clues: {shownClues.length}/6</span>
-        </section>
-
-        <section style={styles.cardsBox}>
-          <div style={styles.clueGrid}>
-            {shownClues.map((player, index) => {
-              const role = getRoleType(player.pos);
-              const roleColors = getRoleColors(role);
-
-              return (
-                <div
-                  key={`${player.name}-${index}`}
-                  className="clue-card"
-                  style={{
-                    ...styles.clueCard,
-                    background: roleColors.bg,
-                    borderColor: roleColors.border,
-                  }}
-                >
-                  <div style={styles.clueTop}>
-                    <span
-                      style={{
-                        ...styles.rolePill,
-                        background: roleColors.pillBg,
-                        color: roleColors.pillText,
-                      }}
-                    >
-                      {role}
-                    </span>
-                  </div>
-
-                  <div style={styles.initials}>{player.initials}</div>
-
-                  <div style={styles.clueBottom}>
-                    {gameOver ? (
-                      <span style={styles.revealedName}>{player.name}</span>
-                    ) : (
-                      <span style={styles.clueHint}>Player clue</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {Array.from({ length: Math.max(0, MAX_CLUES - shownClues.length) }).map((_, index) => (
-              <div key={`locked-${index}`} style={styles.lockedCard}>
-                <div style={styles.lockedQuestion}>?</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section style={styles.guessesBox}>
-          {guesses.length === 0 ? (
-            <div style={styles.emptyGuessRow}>
-              <div style={styles.emptyGuessSquare}>-</div>
-              <div>
-                <div style={styles.emptyGuessTitle}>No guesses yet</div>
-                <div style={styles.emptyGuessText}>Start guessing the hidden AFL team.</div>
-              </div>
-            </div>
-          ) : (
-            guesses.map((item, index) => {
-              const correct = item.toLowerCase() === round.answer.toLowerCase();
-
-              return (
-                <div
-                  key={`${item}-${index}`}
-                  style={{
-                    ...styles.guessRow,
-                    borderColor: correct ? "#16a34a" : "#dc2626",
-                    background: correct ? "#ecfdf5" : "#fef2f2",
-                  }}
-                >
-                  <div style={styles.guessLeft}>
-                    {gameOver && (
-                      <img
-                        src={getTeamIcon(item)}
-                        alt={item}
-                        style={styles.guessIcon}
-                      />
-                    )}
-                    <span style={styles.guessName}>{item}</span>
-                  </div>
-                  <span
-                    style={{
-                      ...styles.guessResult,
-                      color: correct ? "#15803d" : "#dc2626",
-                    }}
-                  >
-                    {correct ? "CORRECT" : "WRONG"}
-                  </span>
-                </div>
-              );
-            })
-          )}
-        </section>
-      </div>
-
-      {modalOpen && (
-        <div style={styles.modalOverlay} onClick={() => setModalOpen(false)}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <button style={styles.modalClose} onClick={() => setModalOpen(false)} type="button">
-              ×
-            </button>
-
-            <div style={styles.modalTop}>
-              <div style={styles.modalLogoCircle}>
-                <img
-                  src={getTeamIcon(round.answer)}
-                  alt={round.answer}
-                  style={styles.modalLogo}
-                />
-              </div>
-            </div>
-
-            <div
-              style={{
-                ...styles.modalBottom,
-                borderBottom: status === "won" ? "10px solid #22c55e" : "10px solid #dc2626",
-              }}
-            >
-              <div style={styles.modalStatus}>
-                {status === "won" ? "Correct!" : "Out of guesses!"}
-              </div>
-
-              <div style={styles.modalAnswer}>
-                {round.answer.toUpperCase()}
-              </div>
-
-              <div style={styles.modalSubtext}>
-                {status === "won" ? (
-                  <>
-                    You solved it in <span style={styles.modalHighlightGood}>{guesses.length}</span> guesses
-                  </>
-                ) : (
-                  <>
-                    The answer was <span style={styles.modalHighlightBad}>{round.answer}</span>
-                  </>
-                )}
-              </div>
-
-              <button style={styles.modalDoneButton} onClick={() => setModalOpen(false)} type="button">
-                Done
-              </button>
-            </div>
-          </div>
+      <section className="hl-hero">
+        <div className="hl-hero-copy">
+          <p className="hl-kicker">Higher or Lower</p>
+          <h1 className="hl-title">Who has the higher stat?</h1>
+          <p className="hl-subtitle">
+            Click higher or lower to see if the next player beats the current one
+            in {selectedLabel.toLowerCase()}.
+          </p>
         </div>
-      )}
+
+        <div className="hl-score-wrap">
+          <div className="hl-score-pill">Score: {score}</div>
+          <div className="hl-score-pill">Best: {best}</div>
+        </div>
+      </section>
+
+      <section className="hl-modes">
+        {STAT_OPTIONS.map((option) => {
+          const active = option.key === selectedStat;
+
+          return (
+            <button
+              key={option.key}
+              className={`hl-mode-button ${active ? "active" : ""}`}
+              onClick={() => {
+                if (isLocked) return;
+                setSelectedStat(option.key);
+              }}
+              disabled={isLocked}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="hl-board">
+        <PlayerCard
+          heading="Current"
+          player={leftPlayer}
+          statKey={selectedStat}
+          value={leftValue}
+          showValue={true}
+        />
+
+        <div className="hl-middle">
+          <div className="hl-vs">VS</div>
+        </div>
+
+        <PlayerCard
+          heading="Next"
+          player={rightPlayer}
+          statKey={selectedStat}
+          value={rightValue}
+          showValue={revealRightValue || gameOver}
+        />
+      </section>
+
+      <section className="hl-actions">
+        {!gameOver ? (
+          <>
+            <button
+              className="hl-action-button"
+              onClick={() => handleGuess("lower")}
+              disabled={isLocked}
+            >
+              Lower
+            </button>
+            <button
+              className="hl-action-button"
+              onClick={() => handleGuess("higher")}
+              disabled={isLocked}
+            >
+              Higher
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="hl-game-over">
+              Game over — answer was {formatValue(rightValue, selectedStat)}
+            </div>
+            <button className="hl-action-button" onClick={startGame}>
+              Play Again
+            </button>
+          </>
+        )}
+      </section>
 
       <style jsx>{`
-        .team-dropdown {
-          position: absolute;
-          top: calc(100% + 8px);
-          left: 0;
-          right: 0;
-          z-index: 20;
-          background: #f7f2e8;
-          border: 4px solid #2a114b;
-          max-height: 240px;
-          overflow-y: auto;
-          overflow-x: hidden;
-          box-shadow: 0 8px 0 rgba(42, 17, 75, 0.12);
-          scrollbar-width: thin;
-          scrollbar-color: #6b4ba8 #f7f2e8;
+        .hl-page {
+          min-height: 100vh;
+          padding: 32px 20px 48px;
+          color: #1d1540;
+          transition: background 0.22s ease;
+          background: radial-gradient(
+            circle at top,
+            #f6f1e4 0%,
+            #efe6d0 55%,
+            #e8ddc4 100%
+          );
         }
 
-        .team-dropdown::-webkit-scrollbar {
-          width: 10px;
+        .hl-page.correct {
+          background: #39d353;
         }
 
-        .team-dropdown::-webkit-scrollbar-track {
-          background: #f7f2e8;
+        .hl-page.wrong {
+          background: #ff4d4f;
         }
 
-        .team-dropdown::-webkit-scrollbar-thumb {
-          background: #6b4ba8;
-          border: 2px solid #f7f2e8;
-        }
-
-        .team-dropdown.open {
-          animation: dropdownIn 0.14s ease-out;
-        }
-
-        .team-dropdown.closing {
-          animation: dropdownOut 0.1s ease-in forwards;
-          pointer-events: none;
-        }
-
-        .team-option {
-          width: 100%;
-          border: 0;
-          border-top: 3px solid #2a114b;
-          background: #f7f2e8;
-          color: #2a114b;
-          padding: 12px 14px;
+        .hl-hero {
+          max-width: 1200px;
+          margin: 0 auto 22px;
+          padding: 28px;
+          border: 3px solid #24114d;
+          border-radius: 24px;
+          background: #f8f4ea;
+          box-shadow: 0 12px 30px rgba(36, 17, 77, 0.08);
           display: flex;
           align-items: center;
-          text-align: left;
-          cursor: pointer;
-          font-weight: 900;
-          transition: background 0.12s ease, transform 0.12s ease;
-          opacity: 0;
-          transform: translateY(-4px);
-          animation: itemIn 0.18s ease forwards;
+          justify-content: space-between;
+          gap: 20px;
+          flex-wrap: wrap;
         }
 
-        .team-option:first-child {
-          border-top: none;
-        }
-
-        .team-option:hover,
-        .team-option.active {
-          background: #efe7d7;
-        }
-
-        .team-option-left {
-          display: flex;
-          align-items: center;
-          gap: 12px;
+        .hl-hero-copy {
+          flex: 1 1 560px;
           min-width: 0;
         }
 
-        .team-option-icon {
-          width: 28px;
-          height: 28px;
-          object-fit: contain;
-          flex: 0 0 28px;
-        }
-
-        .team-option-name {
-          font-size: 1rem;
+        .hl-kicker {
+          margin: 0;
+          font-size: 14px;
           font-weight: 900;
-          color: #2a114b;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #5f4a92;
+        }
+
+        .hl-title {
+          margin: 8px 0 10px;
+          font-size: clamp(2rem, 5vw, 4rem);
+          line-height: 0.95;
+          font-weight: 900;
+        }
+
+        .hl-subtitle {
+          margin: 0;
+          font-size: 18px;
+          line-height: 1.45;
+          color: #504770;
+          max-width: 700px;
+        }
+
+        .hl-score-wrap {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .hl-score-pill {
+          padding: 12px 18px;
+          border: 2px solid #24114d;
+          border-radius: 999px;
+          background: #fffdf7;
+          font-weight: 800;
+          font-size: 16px;
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
         }
 
-        .clue-card {
-          opacity: 0;
-          transform: translateY(6px);
-          animation: clueIn 0.2s ease forwards;
+        .hl-score-pill:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 18px rgba(36, 17, 77, 0.08);
         }
 
-        @keyframes dropdownIn {
-          from {
-            opacity: 0;
-            transform: translateY(-4px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        .hl-modes {
+          max-width: 1200px;
+          margin: 0 auto 24px;
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
         }
 
-        @keyframes dropdownOut {
-          from {
-            opacity: 1;
-          }
-          to {
-            opacity: 0;
-          }
+        .hl-mode-button,
+        .hl-action-button {
+          transition:
+            transform 0.15s ease,
+            box-shadow 0.15s ease,
+            background 0.15s ease,
+            color 0.15s ease,
+            border-color 0.15s ease,
+            opacity 0.15s ease;
         }
 
-        @keyframes itemIn {
-          from {
-            opacity: 0;
-            transform: translateY(-4px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        .hl-mode-button:hover,
+        .hl-action-button:hover {
+          transform: translateY(-3px) scale(1.02);
         }
 
-        @keyframes clueIn {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        .hl-mode-button:active,
+        .hl-action-button:active {
+          transform: translateY(1px) scale(0.98);
         }
 
-        @keyframes inputShake {
-          0%, 100% {
-            transform: translateX(0);
-          }
-          25% {
-            transform: translateX(-4px);
-          }
-          50% {
-            transform: translateX(4px);
-          }
-          75% {
-            transform: translateX(-3px);
-          }
+        .hl-mode-button:disabled,
+        .hl-action-button:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .hl-mode-button {
+          padding: 14px 18px;
+          border: 2px solid #24114d;
+          border-radius: 14px;
+          background: #fffaf0;
+          color: #24114d;
+          font-weight: 800;
+          font-size: 16px;
+          cursor: pointer;
+          box-shadow: 0 6px 14px rgba(36, 17, 77, 0.06);
+        }
+
+        .hl-mode-button.active {
+          background: #24114d;
+          color: #fffaf0;
+          box-shadow: 0 10px 24px rgba(36, 17, 77, 0.18);
+        }
+
+        .hl-board {
+          max-width: 1200px;
+          margin: 0 auto;
+          display: grid;
+          grid-template-columns: 1fr 90px 1fr;
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .hl-middle {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .hl-vs {
+          width: 72px;
+          height: 72px;
+          border-radius: 50%;
+          border: 3px solid #24114d;
+          background: #fffdf7;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 900;
+          font-size: 22px;
+          box-shadow: 0 8px 20px rgba(36, 17, 77, 0.08);
+        }
+
+        .hl-actions {
+          max-width: 1200px;
+          margin: 24px auto 0;
+          display: flex;
+          justify-content: center;
+          gap: 14px;
+          flex-wrap: wrap;
+        }
+
+        .hl-action-button {
+          min-width: 180px;
+          padding: 16px 22px;
+          border: 2px solid #24114d;
+          border-radius: 16px;
+          background: #24114d;
+          color: #fffaf0;
+          font-size: 18px;
+          font-weight: 900;
+          cursor: pointer;
+          box-shadow: 0 10px 24px rgba(36, 17, 77, 0.18);
+        }
+
+        .hl-action-button:hover {
+          box-shadow: 0 14px 28px rgba(36, 17, 77, 0.24);
+        }
+
+        .hl-game-over {
+          padding: 16px 22px;
+          border: 2px solid #24114d;
+          border-radius: 16px;
+          background: #fffdf7;
+          color: #24114d;
+          font-size: 18px;
+          font-weight: 800;
+          text-align: center;
         }
 
         @media (max-width: 900px) {
-          .team-option-name {
-            font-size: 0.95rem;
+          .hl-page {
+            padding: 20px 14px 32px;
+          }
+
+          .hl-hero {
+            padding: 20px;
+            gap: 16px;
+            border-radius: 20px;
+          }
+
+          .hl-subtitle {
+            font-size: 16px;
+            max-width: none;
+          }
+
+          .hl-score-wrap {
+            width: 100%;
+            justify-content: flex-start;
+          }
+
+          .hl-modes {
+            gap: 10px;
+          }
+
+          .hl-mode-button {
+            flex: 1 1 calc(50% - 5px);
+            min-width: 140px;
+            text-align: center;
+            padding: 13px 14px;
+            font-size: 15px;
+          }
+
+          .hl-board {
+            grid-template-columns: 1fr;
+            gap: 14px;
+          }
+
+          .hl-middle {
+            min-height: 0;
+            order: 2;
+          }
+
+          .hl-vs {
+            width: 56px;
+            height: 56px;
+            font-size: 17px;
+          }
+
+          .hl-actions {
+            gap: 12px;
+          }
+
+          .hl-action-button {
+            flex: 1 1 100%;
+            min-width: 0;
+            width: 100%;
+            padding: 15px 18px;
+            font-size: 17px;
+          }
+
+          .hl-game-over {
+            width: 100%;
+            font-size: 16px;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .hl-page {
+            padding: 16px 12px 28px;
+          }
+
+          .hl-hero {
+            padding: 16px;
+            margin-bottom: 18px;
+            border-radius: 18px;
+          }
+
+          .hl-kicker {
+            font-size: 12px;
+          }
+
+          .hl-title {
+            margin: 6px 0 8px;
+            font-size: clamp(1.75rem, 10vw, 2.5rem);
+            line-height: 0.98;
+          }
+
+          .hl-subtitle {
+            font-size: 14px;
+            line-height: 1.4;
+          }
+
+          .hl-score-wrap {
+            gap: 8px;
+          }
+
+          .hl-score-pill {
+            padding: 10px 14px;
+            font-size: 14px;
+          }
+
+          .hl-modes {
+            margin-bottom: 18px;
+            gap: 8px;
+          }
+
+          .hl-mode-button {
+            flex: 1 1 100%;
+            min-width: 0;
+            padding: 12px 14px;
+            font-size: 14px;
+            border-radius: 12px;
+          }
+
+          .hl-board {
+            gap: 12px;
+          }
+
+          .hl-vs {
+            width: 52px;
+            height: 52px;
+            font-size: 16px;
+            border-width: 2px;
+          }
+
+          .hl-actions {
+            margin-top: 18px;
+            gap: 10px;
+          }
+
+          .hl-action-button {
+            padding: 14px 16px;
+            font-size: 16px;
+            border-radius: 14px;
+          }
+
+          .hl-game-over {
+            padding: 14px 16px;
+            font-size: 15px;
+            border-radius: 14px;
           }
         }
       `}</style>
@@ -934,377 +697,211 @@ export default function GuessTheTeamPage() {
   );
 }
 
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    backgroundColor: "#f4efe3",
-    backgroundImage: "radial-gradient(rgba(42,17,75,0.08) 1px, transparent 1px)",
-    backgroundSize: "14px 14px",
-    color: "#2a114b",
-    padding: "24px 16px 60px",
-    fontFamily: "Inter, Arial, sans-serif",
-    transition: "background-color 0.2s ease",
-  },
-  pageGood: {
-    backgroundColor: "#edfdf1",
-  },
-  pageBad: {
-    backgroundColor: "#fff1f1",
-  },
-  wrap: {
-    width: "100%",
-    maxWidth: "1160px",
-    margin: "0 auto",
-  },
-  kicker: {
-    fontSize: "0.95rem",
-    fontWeight: 900,
-    letterSpacing: "0.14em",
-    color: "#4b5563",
-    marginBottom: "10px",
-  },
-  title: {
-    margin: "0 0 20px",
-    fontSize: "clamp(2.5rem, 6vw, 4.4rem)",
-    lineHeight: 0.95,
-    fontWeight: 1000,
-    letterSpacing: "-0.04em",
-    color: "#1d0b38",
-  },
-  searchRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 170px",
-    gap: "14px",
-    alignItems: "start",
-    marginBottom: "16px",
-  },
-  inputOuter: {
-    minHeight: "74px",
-    border: "4px solid #2a114b",
-    background: "#f7f2e8",
-    display: "grid",
-    gridTemplateColumns: "72px 1fr",
-  },
-  inputOuterShake: {
-    animation: "inputShake 0.35s ease",
-  },
-  hashBox: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRight: "4px solid #2a114b",
-    fontSize: "2rem",
-    fontWeight: 1000,
-    color: "#1d0b38",
-    background: "#fffaf0",
-  },
-  inputWrap: {
-    position: "relative",
-    minWidth: 0,
-  },
-  input: {
-    width: "100%",
-    height: "100%",
-    minHeight: "66px",
-    border: "none",
-    background: "transparent",
-    color: "#2a114b",
-    padding: "0 46px 0 18px",
-    fontSize: "1.1rem",
-    fontWeight: 800,
-    outline: "none",
-  },
-  clearButton: {
-    position: "absolute",
-    top: "50%",
-    right: "12px",
-    transform: "translateY(-50%)",
-    width: "28px",
-    height: "28px",
-    border: "none",
-    background: "#2a114b",
-    color: "#fff",
-    borderRadius: "999px",
-    fontSize: "1rem",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  actionButton: {
-    minHeight: "74px",
-    border: "4px solid #2a114b",
-    background: "#fffaf0",
-    color: "#2a114b",
-    fontWeight: 1000,
-    fontSize: "1.1rem",
-    cursor: "pointer",
-    boxShadow: "0 4px 0 rgba(42,17,75,0.10)",
-  },
-  infoBar: {
-    border: "4px solid #2a114b",
-    background: "#ded7c8",
-    padding: "14px 18px",
-    display: "flex",
-    gap: "24px",
-    flexWrap: "wrap",
-    fontWeight: 900,
-    fontSize: "1rem",
-    marginBottom: "16px",
-  },
-  cardsBox: {
-    border: "4px solid #2a114b",
-    background: "#f0eadf",
-    padding: "18px",
-    marginBottom: "16px",
-  },
-  clueGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-    gap: "14px",
-  },
-  clueCard: {
-    minHeight: "160px",
-    border: "4px solid #2a114b",
-    padding: "12px",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-  },
-  clueTop: {
-    display: "flex",
-    justifyContent: "flex-end",
-  },
-  rolePill: {
-    fontSize: "0.8rem",
-    fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: "999px",
-    letterSpacing: "0.06em",
-  },
-  initials: {
-    textAlign: "center",
-    fontSize: "clamp(2.2rem, 6vw, 3.4rem)",
-    fontWeight: 1000,
-    letterSpacing: "0.06em",
-    color: "#1d0b38",
-    lineHeight: 1,
-  },
-  clueBottom: {
-    textAlign: "center",
-    minHeight: "22px",
-  },
-  clueHint: {
-    fontSize: "0.85rem",
-    fontWeight: 800,
-    color: "#5b5568",
-  },
-  revealedName: {
-    fontSize: "0.85rem",
-    fontWeight: 900,
-    color: "#1d0b38",
-    lineHeight: 1.2,
-  },
-  lockedCard: {
-    minHeight: "160px",
-    border: "4px dashed #b7adcb",
-    background: "#f8f4ec",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lockedQuestion: {
-    textAlign: "center",
-    fontSize: "3rem",
-    fontWeight: 1000,
-    color: "#9aa1ad",
-    lineHeight: 1,
-  },
-  guessesBox: {
-    border: "4px solid #2a114b",
-    background: "#f0eadf",
-    padding: "14px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-  },
-  emptyGuessRow: {
-    display: "flex",
-    gap: "14px",
-    alignItems: "center",
-  },
-  emptyGuessSquare: {
-    width: "54px",
-    height: "54px",
-    border: "4px solid #2a114b",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "1.4rem",
-    fontWeight: 1000,
-    color: "#2a114b",
-    background: "#fffaf0",
-    flex: "0 0 54px",
-  },
-  emptyGuessTitle: {
-    fontSize: "1rem",
-    fontWeight: 1000,
-    color: "#1d0b38",
-    marginBottom: "4px",
-  },
-  emptyGuessText: {
-    fontSize: "0.95rem",
-    fontWeight: 700,
-    color: "#5b5568",
-  },
-  guessRow: {
-    border: "4px solid #2a114b",
-    padding: "12px 14px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  guessLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    minWidth: 0,
-  },
-  guessIcon: {
-    width: "24px",
-    height: "24px",
-    objectFit: "contain",
-    flex: "0 0 24px",
-  },
-  guessName: {
-    fontSize: "1rem",
-    fontWeight: 1000,
-    color: "#1d0b38",
-  },
-  guessResult: {
-    fontSize: "0.9rem",
-    fontWeight: 1000,
-    letterSpacing: "0.08em",
-  },
-  loadingBox: {
-    marginTop: "60px",
-    border: "4px solid #2a114b",
-    background: "#fffaf0",
-    padding: "28px",
-  },
-  loadingTitle: {
-    margin: 0,
-    fontSize: "2rem",
-    fontWeight: 1000,
-    color: "#1d0b38",
-  },
-  loadingText: {
-    marginTop: "10px",
-    fontSize: "1rem",
-    fontWeight: 700,
-    color: "#5b5568",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(24, 14, 44, 0.42)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "20px",
-    zIndex: 200,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: "680px",
-    background: "#e9e1d2",
-    border: "5px solid #2a114b",
-    boxShadow: "8px 8px 0 rgba(42,17,75,0.20)",
-    position: "relative",
-    overflow: "hidden",
-  },
-  modalClose: {
-    position: "absolute",
-    top: "16px",
-    right: "18px",
-    width: "34px",
-    height: "34px",
-    border: "none",
-    background: "transparent",
-    color: "#6b6b6b",
-    fontSize: "2rem",
-    lineHeight: 1,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  modalTop: {
-    minHeight: "230px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderBottom: "4px solid #2a114b",
-    padding: "28px 24px",
-  },
-  modalLogoCircle: {
-    width: "164px",
-    height: "164px",
-    borderRadius: "999px",
-    border: "4px solid #2a114b",
-    background: "#f8f8f8",
-    boxShadow: "6px 6px 0 rgba(42,17,75,0.16)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalLogo: {
-    width: "92px",
-    height: "92px",
-    objectFit: "contain",
-  },
-  modalBottom: {
-    padding: "38px 26px 42px",
-    textAlign: "center",
-  },
-  modalStatus: {
-    fontSize: "1rem",
-    fontWeight: 900,
-    color: "#1d0b38",
-    marginBottom: "16px",
-  },
-  modalAnswer: {
-    fontSize: "clamp(2.3rem, 7vw, 4.2rem)",
-    lineHeight: 0.92,
-    fontWeight: 1000,
-    color: "#1b123d",
-    textTransform: "uppercase",
-    letterSpacing: "-0.04em",
-    textShadow: "4px 4px 0 rgba(120, 95, 40, 0.20)",
-    marginBottom: "20px",
-    whiteSpace: "pre-wrap",
-  },
-  modalSubtext: {
-    fontSize: "1rem",
-    fontWeight: 800,
-    color: "#2a114b",
-    marginBottom: "24px",
-  },
-  modalHighlightGood: {
-    color: "#22c55e",
-    fontWeight: 1000,
-  },
-  modalHighlightBad: {
-    color: "#dc2626",
-    fontWeight: 1000,
-  },
-  modalDoneButton: {
-    minWidth: "140px",
-    height: "72px",
-    border: "4px solid #2a114b",
-    background: "#f2f2f2",
-    color: "#2a114b",
-    fontWeight: 1000,
-    fontSize: "1.1rem",
-    cursor: "pointer",
-    boxShadow: "4px 4px 0 rgba(42,17,75,0.18)",
-  },
-};
+function PlayerCard({
+  heading,
+  player,
+  statKey,
+  value,
+  showValue,
+}: {
+  heading: string;
+  player: Player | null;
+  statKey: StatKey;
+  value: number | null;
+  showValue: boolean;
+}) {
+  const name = player ? getName(player) : "Loading...";
+  const team = player ? getTeam(player) : "";
+  const icon = team ? getTeamIcon(team) : "";
+
+  const statLabel =
+    STAT_OPTIONS.find((option) => option.key === statKey)?.label || "";
+
+  return (
+    <>
+      <div className="hl-player-card">
+        <div className="hl-player-top">
+          <div className="hl-player-heading">{heading}</div>
+
+          <div className="hl-player-main">
+            {icon ? (
+              <img
+                src={icon}
+                alt={team}
+                className="hl-player-icon"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            ) : null}
+
+            <div className="hl-player-text">
+              <h2 className="hl-player-name">{name}</h2>
+              <p className="hl-player-team">{team}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="hl-player-stat-box">
+          <div className="hl-player-stat-label">{statLabel}</div>
+          <div className="hl-player-stat-value">
+            {showValue ? formatValue(value, statKey) : "?"}
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .hl-player-card {
+          border: 3px solid #24114d;
+          border-radius: 24px;
+          padding: 24px;
+          min-height: 320px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-shadow: 0 12px 30px rgba(36, 17, 77, 0.08);
+          background: #f8f4ea;
+          color: #1d1540;
+          transition: background 0.15s ease, color 0.15s ease;
+          min-width: 0;
+        }
+
+        .hl-player-top {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          min-width: 0;
+        }
+
+        .hl-player-heading {
+          display: inline-flex;
+          align-self: flex-start;
+          padding: 7px 10px;
+          border-radius: 999px;
+          background: #eee6d4;
+          font-size: 13px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .hl-player-main {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          min-width: 0;
+        }
+
+        .hl-player-icon {
+          width: 64px;
+          height: 64px;
+          object-fit: contain;
+          flex-shrink: 0;
+        }
+
+        .hl-player-text {
+          min-width: 0;
+        }
+
+        .hl-player-name {
+          margin: 0;
+          font-size: clamp(1.5rem, 3vw, 2.6rem);
+          line-height: 1;
+          font-weight: 900;
+          color: #1d1540;
+          word-break: break-word;
+        }
+
+        .hl-player-team {
+          margin: 8px 0 0;
+          font-size: 17px;
+          font-weight: 700;
+          color: #5f5679;
+          word-break: break-word;
+        }
+
+        .hl-player-stat-box {
+          margin-top: 24px;
+          border: 3px solid #24114d;
+          border-radius: 20px;
+          background: #fffdf7;
+          padding: 18px;
+          text-align: center;
+        }
+
+        .hl-player-stat-label {
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #5f4a92;
+          margin-bottom: 10px;
+        }
+
+        .hl-player-stat-value {
+          font-size: clamp(2.2rem, 6vw, 4.5rem);
+          line-height: 1;
+          font-weight: 900;
+          color: #1d1540;
+        }
+
+        @media (max-width: 900px) {
+          .hl-player-card {
+            min-height: 0;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .hl-player-card {
+            padding: 16px;
+            border-radius: 18px;
+          }
+
+          .hl-player-top {
+            gap: 14px;
+          }
+
+          .hl-player-heading {
+            font-size: 11px;
+            padding: 6px 9px;
+          }
+
+          .hl-player-main {
+            gap: 12px;
+            align-items: flex-start;
+          }
+
+          .hl-player-icon {
+            width: 50px;
+            height: 50px;
+          }
+
+          .hl-player-name {
+            font-size: clamp(1.2rem, 7vw, 1.8rem);
+            line-height: 1.02;
+          }
+
+          .hl-player-team {
+            margin-top: 6px;
+            font-size: 14px;
+          }
+
+          .hl-player-stat-box {
+            margin-top: 18px;
+            padding: 14px;
+            border-radius: 16px;
+          }
+
+          .hl-player-stat-label {
+            font-size: 11px;
+            margin-bottom: 8px;
+          }
+
+          .hl-player-stat-value {
+            font-size: clamp(2rem, 11vw, 3rem);
+          }
+        }
+      `}</style>
+    </>
+  );
+}

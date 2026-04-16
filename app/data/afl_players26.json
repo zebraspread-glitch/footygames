@@ -8389,26 +8389,6 @@
     "metres_gained": 2612
   },
   {
-    "id": "gws_ash",
-    "name": "Lachie Ash",
-    "club": "GWS",
-    "pos": [
-      "DEF"
-    ],
-    "age": 24,
-    "number": 7,
-    "disposals": 0,
-    "goals": 0,
-    "kicks": 0,
-    "handballs": 0,
-    "marks": 0,
-    "tackles": 0,
-    "hitouts": 0,
-    "sc_points": 0,
-    "bounces": 0,
-    "metres_gained": 0
-  },
-  {
     "id": "carl_fogarty_lachie",
     "name": "Lachie Fogarty",
     "club": "Carlton",

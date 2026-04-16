@@ -36,6 +36,19 @@ type PromptDefinition = {
 
 const GAME_SECONDS = 60;
 
+const ALLOWED_CATEGORY_LABELS = [
+  "Random",
+  "Club",
+  "Initials",
+  "First Name",
+  "Last Name",
+  "Stat",
+  "Jumper",
+  "Age",
+  "Role",
+  "Club Group",
+] as const;
+
 const CLUB_ICON_MAP: Record<string, string> = {
   Adelaide: "/team-icons/adelaide.png",
   Brisbane: "/team-icons/brisbane.png",
@@ -240,7 +253,7 @@ function findPlayerByTypedName(input: string): Player | null {
     if (aliasPlayer) return aliasPlayer;
   }
 
-  const exactPlayer = PLAYER_NAME_MAP.get(normalizedInput);
+  const exactPlayer = PLAYER_NAME_MAP.get(normalize(normalizedInput));
   if (exactPlayer) return exactPlayer;
 
   let bestMatch: Player | null = null;
@@ -289,7 +302,6 @@ function createPromptPool(sourcePlayers: Player[]): PromptDefinition[] {
   const prompts: PromptDefinition[] = [];
 
   const clubs = Array.from(new Set(sourcePlayers.map((player) => player.club).filter(Boolean)));
-  const states = Array.from(new Set(sourcePlayers.map((player) => player.state).filter(Boolean)));
   const positions = Array.from(
     new Set(
       sourcePlayers
@@ -331,19 +343,10 @@ function createPromptPool(sourcePlayers: Player[]): PromptDefinition[] {
     });
   });
 
-  states.forEach((state) => {
-    prompts.push({
-      id: `state-${state}`,
-      label: "State",
-      displayValue: state,
-      matches: (player) => normalize(player.state) === normalize(state),
-    });
-  });
-
   positions.forEach((position) => {
     prompts.push({
       id: `position-${position}`,
-      label: "Position",
+      label: "Role",
       displayValue: position,
       matches: (player) =>
         player.pos.some((pos) => normalize(pos) === normalize(position)),
@@ -520,7 +523,7 @@ function createPromptPool(sourcePlayers: Player[]): PromptDefinition[] {
     {
       id: "expansion-clubs",
       label: "Club Group",
-      displayValue: "Expansion Teams",
+      displayValue: "Expansion Cup Teams",
       matches: (player) =>
         normalize(player.club) === normalize("Gold Coast") ||
         normalize(player.club) === normalize("GWS"),
@@ -528,51 +531,11 @@ function createPromptPool(sourcePlayers: Player[]): PromptDefinition[] {
     {
       id: "big-clubs",
       label: "Club Group",
-      displayValue: "Big Clubs",
+      displayValue: "Big 4 Clubs",
       matches: (player) =>
-        ["Collingwood", "Carlton", "Essendon", "Richmond"].some(
+        ["Collingwood", "Carlton", "Essendon", "Hawthorn"].some(
           (club) => normalize(player.club) === normalize(club)
         ),
-    },
-    {
-      id: "name-3plus-vowels",
-      label: "Name",
-      displayValue: "3+ Vowels in Name",
-      matches: (player) => {
-        const letters = player.name.toLowerCase().replace(/[^a-z]/g, "");
-        const vowels = letters.split("").filter((ch) => "aeiou".includes(ch)).length;
-        return vowels >= 3;
-      },
-    },
-    {
-      id: "name-double-letter",
-      label: "Name",
-      displayValue: "Double Letter in Name",
-      matches: (player) => /(aa|bb|cc|dd|ee|ff|gg|hh|ii|jj|kk|ll|mm|nn|oo|pp|qq|rr|ss|tt|uu|vv|ww|xx|yy|zz)/i.test(player.name),
-    },
-    {
-      id: "jumper-ends-0",
-      label: "Jumper",
-      displayValue: "Jumper ends in 0",
-      matches: (player) => player.number % 10 === 0,
-    },
-    {
-      id: "jumper-ends-5",
-      label: "Jumper",
-      displayValue: "Jumper ends in 5",
-      matches: (player) => player.number % 10 === 5,
-    },
-    {
-      id: "same-first-last-initial",
-      label: "Name",
-      displayValue: "Same First & Last Initial",
-      matches: (player) => {
-        const parts = player.name.trim().split(/\s+/).filter(Boolean);
-        if (parts.length < 2) return false;
-        const firstInitial = parts[0][0]?.toUpperCase() || "";
-        const lastInitial = parts[parts.length - 1][0]?.toUpperCase() || "";
-        return firstInitial !== "" && firstInitial === lastInitial;
-      },
     },
   ];
 
@@ -603,6 +566,8 @@ function getTimeColor(secondsLeft: number, totalSeconds: number) {
 
 export default function BlitzPage() {
   const [prompt, setPrompt] = useState<PromptDefinition | null>(null);
+  const [selectedCategory, setSelectedCategory] =
+    useState<(typeof ALLOWED_CATEGORY_LABELS)[number] | "">("Random");
   const [query, setQuery] = useState("");
   const [guessedPlayers, setGuessedPlayers] = useState<Player[]>([]);
   const [revealedAnswers, setRevealedAnswers] = useState<Player[]>([]);
@@ -623,23 +588,39 @@ export default function BlitzPage() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const promptPool = useMemo(() => createPromptPool(players), []);
 
-  function getRandomPrompt(excludeId?: string): PromptDefinition | null {
-    const pool = excludeId
-      ? promptPool.filter((item) => item.id !== excludeId)
-      : promptPool;
+  const categoryOptions = useMemo(() => {
+    return ALLOWED_CATEGORY_LABELS.filter((label) => {
+      if (label === "Random") return true;
+      return promptPool.some((prompt) => prompt.label === label);
+    });
+  }, [promptPool]);
 
-    if (!pool.length) return null;
+  useEffect(() => {
+    if (!selectedCategory && categoryOptions.length > 0) {
+      setSelectedCategory("Random");
+    }
+  }, [categoryOptions, selectedCategory]);
 
-    const initialsPrompts = pool.filter((p) => p.label === "Initials");
-    const nonInitialsPrompts = pool.filter((p) => p.label !== "Initials");
-
-    const shouldUseInitials = initialsPrompts.length > 0 && Math.random() < 0.15;
-
-    if (shouldUseInitials) {
-      return randomFrom(initialsPrompts);
+  function getRandomPromptForCategory(
+    category: string,
+    excludeId?: string
+  ): PromptDefinition | null {
+    if (category === "Random") {
+      const pool = promptPool.filter((item) => item.id !== excludeId);
+      if (pool.length > 0) return randomFrom(pool);
+      return randomFrom(promptPool);
     }
 
-    return randomFrom(nonInitialsPrompts) ?? randomFrom(pool);
+    const pool = promptPool.filter(
+      (item) => item.label === category && item.id !== excludeId
+    );
+
+    if (pool.length > 0) {
+      return randomFrom(pool);
+    }
+
+    const fallbackPool = promptPool.filter((item) => item.label === category);
+    return randomFrom(fallbackPool);
   }
 
   const availableCount = useMemo(() => {
@@ -647,16 +628,32 @@ export default function BlitzPage() {
     return players.filter((player) => prompt.matches(player)).length;
   }, [prompt]);
 
+  const previewPrompt = useMemo(() => {
+    if (!selectedCategory || selectedCategory === "Random") return null;
+    return promptPool.find((item) => item.label === selectedCategory) ?? null;
+  }, [promptPool, selectedCategory]);
+
+  const previewCount = useMemo(() => {
+    if (!selectedCategory) return 0;
+    if (selectedCategory === "Random") return promptPool.length;
+    return promptPool.filter((item) => item.label === selectedCategory).length;
+  }, [promptPool, selectedCategory]);
+
   const timeAccent = getTimeColor(timeLeft, GAME_SECONDS);
 
   useEffect(() => {
     if (countdown === null) return;
+
     if (countdown <= 0) {
+      const firstPrompt = selectedCategory
+        ? getRandomPromptForCategory(selectedCategory)
+        : getRandomPromptForCategory("Random");
+
       setCountdown(null);
       setStarted(true);
       setGameOver(false);
       setTimeLeft(GAME_SECONDS);
-      setPrompt(getRandomPrompt());
+      setPrompt(firstPrompt);
       setTimeout(() => inputRef.current?.focus(), 0);
       return;
     }
@@ -666,7 +663,7 @@ export default function BlitzPage() {
     }, 900);
 
     return () => window.clearTimeout(timeout);
-  }, [countdown]);
+  }, [countdown, selectedCategory]);
 
   useEffect(() => {
     if (!started || gameOver || countdown !== null) return;
@@ -702,7 +699,8 @@ export default function BlitzPage() {
   }, [started, gameOver, prompt, countdown]);
 
   function moveToNextPrompt() {
-    const nextPrompt = getRandomPrompt(prompt?.id);
+    const category = selectedCategory || "Random";
+    const nextPrompt = getRandomPromptForCategory(category, prompt?.id);
     setPrompt(nextPrompt);
     setGuessedPlayers([]);
     setRevealedAnswers([]);
@@ -838,6 +836,30 @@ export default function BlitzPage() {
       </section>
 
       <section className="info-card blitz-setup-card" style={{ animation: "fadeUp 0.45s ease" }}>
+        {!started && countdown === null && (
+          <div className="category-picker">
+            <label htmlFor="category-select" className="category-picker-label">
+              Choose Category
+            </label>
+            <select
+              id="category-select"
+              className="category-select"
+              value={selectedCategory}
+              onChange={(e) =>
+                setSelectedCategory(
+                  e.target.value as (typeof ALLOWED_CATEGORY_LABELS)[number]
+                )
+              }
+            >
+              {categoryOptions.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="progress-wrap">
           <div className="progress-bar">
             <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
@@ -854,9 +876,22 @@ export default function BlitzPage() {
             </div>
           ) : (
             <>
-              <h2>{promptHeading}</h2>
+              <div className="prompt-single-row">
+                <h2>{selectedCategory || "Ready"}</h2>
+                {selectedCategory && (
+                  <span className="match-count">
+                    {selectedCategory === "Random"
+                      ? `${previewCount} total prompts`
+                      : `${previewCount} possible prompts`}
+                  </span>
+                )}
+              </div>
               <div className="prompt-empty">
-                {countdown !== null ? "Get ready..." : "Press Start Game to begin."}
+                {countdown !== null
+                  ? "Get ready..."
+                  : selectedCategory
+                  ? "Press Start Game to begin."
+                  : "Choose a category to begin."}
               </div>
             </>
           )}
@@ -934,7 +969,7 @@ export default function BlitzPage() {
                     <div className="correct-meta">{player.club}</div>
                   </div>
                 </div>
-                <div className="correct-tag">✓</div>
+                <div className="correct-tag tag-guessed">✓</div>
               </div>
             ))}
           </div>
@@ -980,7 +1015,9 @@ export default function BlitzPage() {
           <div className="info-card help-modal" onClick={(e) => e.stopPropagation()}>
             <span className="small-pill">How to play</span>
             <h2>Blitz Mode rules</h2>
-            <p>Start the timer and type the full player name, then press Enter.</p>
+            <p>Choose a category, start the timer, then type the full player name and press Enter.</p>
+            <p>If Random is selected, prompts can come from any category.</p>
+            <p>Otherwise the game will keep giving random prompts from that category only.</p>
             <p>Common aliases and obvious close spellings are accepted.</p>
             <p>When time runs out, all answers for the final prompt are revealed.</p>
             <button className="ui-button fancy-btn" onClick={() => setShowHelp(false)}>
@@ -1106,6 +1143,38 @@ export default function BlitzPage() {
         .blitz-setup-card {
           display: grid;
           gap: 18px;
+        }
+
+        .category-picker {
+          display: grid;
+          gap: 8px;
+        }
+
+        .category-picker-label {
+          font-size: 0.85rem;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #5c5567;
+        }
+
+        .category-select {
+          width: 100%;
+          min-height: 56px;
+          border: 4px solid #271248;
+          background: #fffaf0;
+          color: #111;
+          border-radius: 16px;
+          padding: 0 16px;
+          font-size: 1rem;
+          font-weight: 800;
+          outline: none;
+          transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .category-select:focus {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
         }
 
         .progress-wrap {
